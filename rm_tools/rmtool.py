@@ -50,9 +50,16 @@ def read_metadata(rootdir, uuid):
 
 def read_content(rootdir, uuid):
     content_file = os.path.join(rootdir, uuid + '.content')
+    if not os.path.exists(content_file):
+        print(f"WARNING: Content file {content_file} not found.")
+        return None
     with open(content_file, 'r') as f:
         json_text = f.read()
-    return json.loads(json_text)
+    try:
+        return json.loads(json_text)
+    except json.JSONDecodeError:
+        print(f"ERROR: Malformed JSON in content file {content_file}.")
+        return None
 
 
 def read_pagedata(rootdir, uuid):
@@ -215,6 +222,13 @@ def convert_file(infile, outfile, rootdir, debug):
     # get file info
     # metadata = read_metadata(rootdir, uuid)
     content = read_content(rootdir, uuid)
+    
+    # Validate the content structure
+    if not content or 'formatVersion' not in content:
+        print(f"ERROR: Missing or invalid content for file {uuid}. Skipping.")
+        return  # Skip processing this file
+
+    
     # pagedata = read_pagedata(rootdir, uuid)
     # create tempdir
     tmpdir = tempfile.mkdtemp(prefix='rmtool.tmp.', dir='/tmp')
@@ -226,6 +240,9 @@ def convert_file(infile, outfile, rootdir, debug):
         page_uuid_list = content['pages']
     elif content['formatVersion'] == 2:
         page_uuid_list = [page['id'] for page in content['cPages']['pages'] if 'deleted' not in page]
+    else:
+        print(f"ERROR: Unsupported format version {content['formatVersion']} for file {uuid}. Skipping.")
+        return
 
     bg_pdf_path = os.path.join(rootdir, uuid + '.pdf')
     bg = PyPDF2.PdfReader(bg_pdf_path) if os.path.exists(bg_pdf_path) else None
