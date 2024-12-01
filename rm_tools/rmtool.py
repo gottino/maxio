@@ -250,13 +250,47 @@ def convert_file(infile, outfile, rootdir, debug):
     bg_fg = PyPDF2.PdfWriter()
 
     for page_num, page_uuid in enumerate(page_uuid_list):
-        page_path = os.path.join(rootdir, uuid, page_uuid + '.rm')
+		page_path = os.path.join(rootdir, uuid, page_uuid + '.rm')  # Foreground path
+		bg_page_num = None
+		bg_page_exists = False
+		
+		# Safely retrieve redirectionPageMap and determine background presence
+		redirection_map = content.get('redirectionPageMap', [])
+		if page_num < len(redirection_map):
+        	bg_page_num = redirection_map[page_num]
+        	bg_page_exists = os.path.exists(bg_pdf_path) and bg_page_num >= 0
+		
+		# Check foreground presence
+    	fg_page_exists = os.path.exists(page_path)
+
+    	# Process valid cases
+    	if bg_page_exists and fg_page_exists:
+        	print(f"INFO: Processing page {page_num} with background and foreground.")
+    	elif bg_page_exists:
+        	print(f"INFO: Processing page {page_num} with background only.")
+    	elif fg_page_exists:
+        	print(f"INFO: Processing page {page_num} with foreground only.")
+    	else:
+        	# Invalid case: neither background nor foreground
+        	print(f"WARNING: No background or foreground for page {page_num} in file {uuid}. Skipping.")
+        	continue
+
+        
+        # Safely handle redirectionPageMap
+        redirection_map = content.get('redirectionPageMap', [])
+        bg_page_exists = (
+        	os.path.exists(bg_pdf_path) and
+        	page_num < len(redirection_map) and
+        	redirection_map[page_num] >= 0
+        )
 
         # determine whether page has foreground (FG) notes (like a "pure" RM notebook),
         # a background (BG) document (like an annotated PDF file), or both
         fg_page_exists = os.path.exists(page_path)
-        if content['formatVersion'] == 1:
-            bg_page_exists = os.path.exists(bg_pdf_path) and content['redirectionPageMap'][page_num] >= 0 # TODO: what is redirectionPageMap value for an unannotated page?
+        if content['formatVersion'] == 1:            	
+            # Determine if the background page exists
+            bg_page_exists = os.path.exists(bg_pdf_path) and content['redirectionPageMap'][page_num] >= 0
+
         elif content['formatVersion'] == 2:
             bg_page_exists = os.path.exists(bg_pdf_path) and 'redir' in content['cPages']['pages'][page_num]
 
